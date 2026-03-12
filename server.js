@@ -45,12 +45,10 @@ io.on('connection', (socket) => {
 
   // Odaya katıl
   socket.on('join-room', ({ roomId, roomName, userName }) => {
-    // Önceki odadan çık
     if (currentRoom) {
       leaveCurrentRoom()
     }
 
-    // Oda yoksa oluştur
     if (!rooms.has(roomId)) {
       rooms.set(roomId, { name: roomName || roomId, users: new Map() })
     }
@@ -62,14 +60,12 @@ io.on('connection', (socket) => {
 
     socket.join(roomId)
 
-    // Odadaki diğer kullanıcılara bildir
     socket.to(roomId).emit('user-joined', {
       userId: socket.id,
       userName,
       users: Array.from(room.users.values())
     })
 
-    // Yeni kullanıcıya mevcut kullanıcıları gönder
     socket.emit('joined-room', {
       roomId,
       roomName: room.name,
@@ -77,13 +73,12 @@ io.on('connection', (socket) => {
       myId: socket.id
     })
 
-    // Tüm istemcilere oda listesini güncelle
     io.emit('room-list', getRoomList())
 
     console.log(`${userName} → ${roomId} odasına katıldı`)
   })
 
-  // WebRTC Sinyalizasyon
+  // WebRTC Sinyalizasyon (ses)
   socket.on('offer', ({ to, offer }) => {
     socket.to(to).emit('offer', { from: socket.id, offer })
   })
@@ -96,7 +91,7 @@ io.on('connection', (socket) => {
     socket.to(to).emit('ice-candidate', { from: socket.id, candidate })
   })
 
-  // Ses durumu (mute/unmute)
+  // Ses durumu
   socket.on('toggle-mute', ({ muted }) => {
     if (currentRoom && userInfo) {
       userInfo.muted = muted
@@ -106,30 +101,14 @@ io.on('connection', (socket) => {
     }
   })
 
-  // Konuşma durumu (ses seviyesi göstergesi)
+  // Konuşma tespiti
   socket.on('speaking', ({ speaking }) => {
     if (currentRoom) {
       socket.to(currentRoom).emit('user-speaking', { userId: socket.id, speaking })
     }
   })
 
-  // Odadan ayrıl
-  function leaveCurrentRoom() {
-    if (!currentRoom) return
-    const room = rooms.get(currentRoom)
-    if (room) {
-      room.users.delete(socket.id)
-      socket.to(currentRoom).emit('user-left', { userId: socket.id, userName: userInfo?.name })
-      if (room.users.size === 0) {
-        rooms.delete(currentRoom)
-      }
-    }
-    socket.leave(currentRoom)
-    currentRoom = null
-    userInfo = null
-    io.emit('room-list', getRoomList())
-  }
-// Metin sohbet
+  // ── Metin Sohbet ──────────────────────────────
   socket.on('chat-message', ({ roomId, text, userName, userId }) => {
     if (!roomId || !text) return
     io.to(roomId).emit('chat-message', {
@@ -140,7 +119,7 @@ io.on('connection', (socket) => {
     })
   })
 
-  // Ekran paylaşımı sinyalleri
+  // ── Ekran Paylaşımı Sinyalleri ────────────────
   socket.on('screen-offer', ({ to, offer }) => {
     socket.to(to).emit('screen-offer', { from: socket.id, offer })
   })
@@ -160,6 +139,26 @@ io.on('connection', (socket) => {
   socket.on('screen-stopped', ({ roomId }) => {
     socket.to(roomId).emit('screen-stopped', { userId: socket.id })
   })
+
+  // ─────────────────────────────────────────────
+
+  // Odadan ayrıl
+  function leaveCurrentRoom() {
+    if (!currentRoom) return
+    const room = rooms.get(currentRoom)
+    if (room) {
+      room.users.delete(socket.id)
+      socket.to(currentRoom).emit('user-left', { userId: socket.id, userName: userInfo?.name })
+      if (room.users.size === 0) {
+        rooms.delete(currentRoom)
+      }
+    }
+    socket.leave(currentRoom)
+    currentRoom = null
+    userInfo = null
+    io.emit('room-list', getRoomList())
+  }
+
   socket.on('leave-room', leaveCurrentRoom)
 
   socket.on('disconnect', () => {
