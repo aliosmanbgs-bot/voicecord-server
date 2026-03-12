@@ -119,7 +119,7 @@ io.on('connection', (socket) => {
     const room = rooms.get(currentRoom)
     if (room) {
       room.users.delete(socket.id)
-      socket.to(currentRoom).emit('user-left', { userId: socket.id })
+      socket.to(currentRoom).emit('user-left', { userId: socket.id, userName: userInfo?.name })
       if (room.users.size === 0) {
         rooms.delete(currentRoom)
       }
@@ -129,7 +129,37 @@ io.on('connection', (socket) => {
     userInfo = null
     io.emit('room-list', getRoomList())
   }
+// Metin sohbet
+  socket.on('chat-message', ({ roomId, text, userName, userId }) => {
+    if (!roomId || !text) return
+    io.to(roomId).emit('chat-message', {
+      userId,
+      userName,
+      text: text.slice(0, 1000),
+      timestamp: Date.now()
+    })
+  })
 
+  // Ekran paylaşımı sinyalleri
+  socket.on('screen-offer', ({ to, offer }) => {
+    socket.to(to).emit('screen-offer', { from: socket.id, offer })
+  })
+
+  socket.on('screen-answer', ({ to, answer }) => {
+    socket.to(to).emit('screen-answer', { from: socket.id, answer })
+  })
+
+  socket.on('screen-ice', ({ to, candidate }) => {
+    socket.to(to).emit('screen-ice', { from: socket.id, candidate })
+  })
+
+  socket.on('screen-started', ({ roomId, userName }) => {
+    socket.to(roomId).emit('screen-started', { userId: socket.id, userName })
+  })
+
+  socket.on('screen-stopped', ({ roomId }) => {
+    socket.to(roomId).emit('screen-stopped', { userId: socket.id })
+  })
   socket.on('leave-room', leaveCurrentRoom)
 
   socket.on('disconnect', () => {
