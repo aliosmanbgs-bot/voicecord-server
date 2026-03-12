@@ -13,8 +13,7 @@ const io = new Server(server, {
   transports: ['websocket', 'polling']
 })
 
-// Oda ve kullanıcı yönetimi
-const rooms = new Map()  // roomId -> { name, users: Map<socketId, userInfo> }
+const rooms = new Map()
 
 function getRoomList() {
   const list = []
@@ -38,16 +37,12 @@ io.on('connection', (socket) => {
   let currentRoom = null
   let userInfo = null
 
-  // Oda listesi iste
   socket.on('get-rooms', () => {
     socket.emit('room-list', getRoomList())
   })
 
-  // Odaya katıl
   socket.on('join-room', ({ roomId, roomName, userName }) => {
-    if (currentRoom) {
-      leaveCurrentRoom()
-    }
+    if (currentRoom) leaveCurrentRoom()
 
     if (!rooms.has(roomId)) {
       rooms.set(roomId, { name: roomName || roomId, users: new Map() })
@@ -74,7 +69,6 @@ io.on('connection', (socket) => {
     })
 
     io.emit('room-list', getRoomList())
-
     console.log(`${userName} → ${roomId} odasına katıldı`)
   })
 
@@ -82,11 +76,9 @@ io.on('connection', (socket) => {
   socket.on('offer', ({ to, offer }) => {
     socket.to(to).emit('offer', { from: socket.id, offer })
   })
-
   socket.on('answer', ({ to, answer }) => {
     socket.to(to).emit('answer', { from: socket.id, answer })
   })
-
   socket.on('ice-candidate', ({ to, candidate }) => {
     socket.to(to).emit('ice-candidate', { from: socket.id, candidate })
   })
@@ -101,7 +93,6 @@ io.on('connection', (socket) => {
     }
   })
 
-  // Konuşma tespiti
   socket.on('speaking', ({ speaking }) => {
     if (currentRoom) {
       socket.to(currentRoom).emit('user-speaking', { userId: socket.id, speaking })
@@ -119,39 +110,30 @@ io.on('connection', (socket) => {
     })
   })
 
-  // ── Ekran Paylaşımı Sinyalleri ────────────────
+  // ── Ekran Paylaşımı ───────────────────────────
   socket.on('screen-offer', ({ to, offer }) => {
     socket.to(to).emit('screen-offer', { from: socket.id, offer })
   })
-
   socket.on('screen-answer', ({ to, answer }) => {
     socket.to(to).emit('screen-answer', { from: socket.id, answer })
   })
-
   socket.on('screen-ice', ({ to, candidate }) => {
     socket.to(to).emit('screen-ice', { from: socket.id, candidate })
   })
-
   socket.on('screen-started', ({ roomId, userName }) => {
     socket.to(roomId).emit('screen-started', { userId: socket.id, userName })
   })
-
   socket.on('screen-stopped', ({ roomId }) => {
     socket.to(roomId).emit('screen-stopped', { userId: socket.id })
   })
 
-  // ─────────────────────────────────────────────
-
-  // Odadan ayrıl
+  // ── Odadan Ayrıl ──────────────────────────────
   function leaveCurrentRoom() {
     if (!currentRoom) return
     const room = rooms.get(currentRoom)
     if (room) {
       room.users.delete(socket.id)
       socket.to(currentRoom).emit('user-left', { userId: socket.id, userName: userInfo?.name })
-      if (room.users.size === 0) {
-        rooms.delete(currentRoom)
-      }
     }
     socket.leave(currentRoom)
     currentRoom = null
